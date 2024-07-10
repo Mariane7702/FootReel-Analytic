@@ -17,7 +17,6 @@ from database import DatabaseHandler
 
 load_dotenv()
 
-
 spark = (SparkSession.builder
          .appName("FootReel Analytic")
          .getOrCreate())
@@ -36,7 +35,8 @@ consumer = KafkaConsumer(
     bootstrap_servers='localhost:9092',
     auto_offset_reset='earliest',
     enable_auto_commit=True,
-    group_id='footreel-consumers'
+    group_id='footreel-consumers',
+    value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
 db_handler = DatabaseHandler(
@@ -56,7 +56,10 @@ match_stats = {
     5: {"team1": "France", "team2": "Belgique", "score1": 0, "score2": 0, "possession1": 0, "possession2": 0}
 }
 
+
 def process_event(event, db_handler):
+    print("entré")
+    print(event["match_id"])
     try:
         match_id = event["match_id"]
         match = match_stats[match_id]
@@ -70,19 +73,24 @@ def process_event(event, db_handler):
             else:
                 print("ok4")
                 match["score2"] += 1
-            query = sql.SQL("INSERT INTO match_events (match_id, event_type, team, scorer, timestamp) VALUES (%s, %s, %s, %s, %s)")
+            query = sql.SQL(
+                "INSERT INTO match_events (match_id, event_type, team, scorer, timestamp) VALUES (%s, %s, %s, %s, %s)")
             values = (event["match_id"], event["event_type"], event["team"], event["scorer"], event["timestamp"])
         elif event["event_type"] == "possession":
             if event["team"] == match["team1"]:
                 match["possession1"] += event["possession_time"]
             else:
                 match["possession2"] += event["possession_time"]
-            query = sql.SQL("INSERT INTO match_events (match_id, event_type, team, possession_time, timestamp) VALUES (%s, %s, %s, %s, %s)")
-            values = (event["match_id"], event["event_type"], event["team"], event["possession_time"], event["timestamp"])
-        query = sql.SQL("INSERT INTO match_events (match_id, event_type, team, scorer, timestamp) VALUES (%s, %s, %s, %s, %s)")
+            query = sql.SQL(
+                "INSERT INTO match_events (match_id, event_type, team, possession_time, timestamp) VALUES (%s, %s, %s, %s, %s)")
+            values = (
+            event["match_id"], event["event_type"], event["team"], event["possession_time"], event["timestamp"])
+        query = sql.SQL(
+            "INSERT INTO match_events (match_id, event_type, team, scorer, timestamp) VALUES (%s, %s, %s, %s, %s)")
         db_handler.execute_query(query, values)
     except Exception as e:
         print(f"Error processing event: {e}")
+
 
 def display_stats():
     while True:
@@ -93,17 +101,13 @@ def display_stats():
             print(f"Possession: {stats['team1']} {stats['possession1']}% - {stats['possession2']}% {stats['team2']}")
         time.sleep(10)
 
+
 display_thread = threading.Thread(target=display_stats)
 display_thread.start()
 
 print("Starting Consumer...")
 
-
 for message in consumer:
     event = message.value
     print(f"Received event: {event}")
     process_event(event, db_handler)
-
-
-
-
