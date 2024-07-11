@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from psycopg2 import sql
 
-from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 from kafka import KafkaConsumer
 import json
@@ -11,11 +10,6 @@ import json
 
 from database import DatabaseHandler
 load_dotenv()
-
-spark = (SparkSession.builder
-         .appName("FootReel Analytic")
-         .getOrCreate())
-
 consumer = KafkaConsumer(
     'football-matches',
     bootstrap_servers='localhost:9092',
